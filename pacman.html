@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="utf-8" />
+    <title>Gamedev Canvas Workshop</title>
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+        }
+        canvas {
+            background: #000000;
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+<canvas id="myCanvas" width="450" height="380"></canvas>
+
+<script>
+    const canvas = document.getElementById("myCanvas");
+    const ctx = canvas.getContext("2d");
+
+    ghost_x = new Array(4);
+    ghost_y = new Array(4);
+    ghost_d = new Array(4);
+
+    ghost_x[0] = 200;
+    ghost_y[0] = 30;
+    ghost_d[0] = 2;
+
+    ghost_x[1] = 180;
+    ghost_y[1] = 190;
+    ghost_d[1] = 2;
+
+    ghost_x[2] = 300;
+    ghost_y[2] = 230;
+    ghost_d[2] = 2;
+
+    ghost_x[3] = 30;
+    ghost_y[3] = 280;
+    ghost_d[3] = 3;
+
+
+    let WORLDSIZE = 19;
+    let BLOCKSIZE = 20;
+    let vel = 1;
+    let pX = BLOCKSIZE * 1.5; let pY = BLOCKSIZE * 1.5;
+    let dir = 0;
+
+    let score = 0;
+
+    let upPressed = false; let downPressed = false; let rightPressed = false;
+    let leftPressed = false;
+
+    let world = new Array(WORLDSIZE);
+    for (let i = 0; i < WORLDSIZE; i++) {
+        world[i] = new Array(WORLDSIZE);
+    }
+    for (i=1; i<WORLDSIZE-1; i++) {
+        for (j=1; j<WORLDSIZE-1; j++) {
+            world[i][j] = 2;
+        }
+    }
+    for (i=-1;i<2; i++) {
+        for (j=-1; j<2; j++) {
+            world[8+i][6+j] = 0;
+            world[8+i][12+j] = 0;
+            world[3+i][15+j] = 0;
+            world[15+i][5+j] = 0;
+            world[13+i][13+j] = 0;
+        }
+    }
+
+
+    function adjustGhosts() {
+        for (i=0; i<4; i++) {
+            if (ghost_x[i] % BLOCKSIZE != BLOCKSIZE/2 || ghost_y[i] % BLOCKSIZE != BLOCKSIZE/2) {
+                continue;
+            }
+            if (Math.random() < 0.5) {
+                ghost_d[i] = Math.floor(Math.random()*4);
+                return;
+            }
+            dx = pX-ghost_x[i];
+            dy = pY-ghost_y[i];
+            if (dx > 0 && asses(0, ghost_x[i], ghost_y[i])) {
+                ghost_d[i] = 0;
+                continue;
+            }
+            if (dx < 0 && asses(2, ghost_x[i], ghost_y[i])) {
+                ghost_d[i] = 2;
+                continue;
+            }
+            if (dy < 0 && asses(1, ghost_x[i], ghost_y[i])) {
+                ghost_d[i] = 1;
+                continue;
+            }
+            if (dy > 0 && asses(3, ghost_x[i], ghost_y[i])) {
+                ghost_d[i] = 3;
+                continue;
+            }
+            ghost_d[i] = Math.floor(Math.random()*4);
+        }
+    }
+
+    function moveGhosts() {
+        for (i=0; i<4; i++) {
+            if (ghost_x[i] % BLOCKSIZE == BLOCKSIZE/2 && ghost_y[i] % BLOCKSIZE == BLOCKSIZE/2) {
+                if (ghost_d[i] == 0 && asses(0, ghost_x[i], ghost_y[i])) {
+                    ghost_x[i] += vel;
+                }
+                if (ghost_d[i] == 1 && asses(1, ghost_x[i], ghost_y[i])) {
+                    ghost_y[i] -= vel;
+                }
+                if (ghost_d[i] == 2 && asses(2, ghost_x[i], ghost_y[i])) {
+                    ghost_x[i] -= vel;
+                }
+                if (ghost_d[i] == 3 && asses(3, ghost_x[i], ghost_y[i])) {
+                    ghost_y[i] += vel;
+                }
+                continue;
+            }
+            if (ghost_d[i] == 0) {
+                ghost_x[i] += vel;
+            }
+            if (ghost_d[i] == 1) {
+                ghost_y[i] -= vel;
+            }
+            if (ghost_d[i] == 2) {
+                ghost_x[i] -= vel;
+            }
+            if (ghost_d[i] == 3) {
+                ghost_y[i] += vel;
+            }
+        }
+    }
+    function xblock(bx, by, L) {
+        for (i=0; i<L; i++) {
+            world[bx+i][by] = 1;
+        }
+        ctx.beginPath();
+        ctx.lineWidth = "2";
+        ctx.strokeStyle = "blue";
+        ctx.roundRect(BLOCKSIZE*bx, BLOCKSIZE*WORLDSIZE-BLOCKSIZE*(by+1), BLOCKSIZE*L, BLOCKSIZE, 5);
+        ctx.roundRect(BLOCKSIZE*bx+4, BLOCKSIZE*WORLDSIZE-BLOCKSIZE*(by+1)+4, BLOCKSIZE*L-8, BLOCKSIZE-8, 5);
+        ctx.stroke();
+        ctx.closePath();
+    }
+
+    function yblock(bx, by, L) {
+        for (i=0; i<L; i++) {
+            world[bx][by+i] = 1;
+        }
+        ctx.beginPath();
+        ctx.lineWidth = "2";
+        ctx.strokeStyle = "blue";
+        ctx.roundRect(BLOCKSIZE*bx, BLOCKSIZE*WORLDSIZE-BLOCKSIZE*(by+L), BLOCKSIZE, BLOCKSIZE*L, 5);
+        ctx.roundRect(BLOCKSIZE*bx+4, BLOCKSIZE*WORLDSIZE-BLOCKSIZE*(by+L)+4, BLOCKSIZE-8, BLOCKSIZE*L-8, 5);
+        ctx.stroke();
+        ctx.closePath();
+    }
+
+    function xysquare(cx, cy, L) {
+        for (i=-L; i<=L; i++) {
+            world[cx+i][cy+L] = 1;
+            world[cx+i][cy-L] = 1;
+        }
+        for (i=-L; i<=L; i++) {
+            world[cx+L][cy+i] = 1;
+            world[cx-L][cy+i] = 1;
+        }
+        ctx.beginPath();
+        ctx.lineWidth = "2";
+        ctx.roundRect(BLOCKSIZE*(cx-L), BLOCKSIZE*WORLDSIZE-BLOCKSIZE*(cy+L+1), BLOCKSIZE*(2*L+1), BLOCKSIZE*(2*L+1), 5);
+        ctx.roundRect(BLOCKSIZE*(cx-L)+4, BLOCKSIZE*WORLDSIZE-BLOCKSIZE*(cy+L+1)+4, BLOCKSIZE*(2*L+1)-8, BLOCKSIZE*(2*L+1)-8, 5);
+        ctx.stroke();
+        ctx.closePath();
+    }
+
+    function coin(cx, cy) {
+        ctx.beginPath();
+        ctx.arc(BLOCKSIZE*(cx+0.5), BLOCKSIZE*WORLDSIZE-(cy+0.5)*BLOCKSIZE, 3, 0, Math.PI*2);
+        ctx.fillStyle = "#EEB7E8";
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    function createMap() {
+        for (i=0; i<WORLDSIZE; i++) {
+            world[i][0] = 1;
+            world[0][i] = 1;
+            world[i][WORLDSIZE-1] = 1;
+            world[WORLDSIZE-1][i] = 1;
+        }
+        /*
+        xblock(2, 2, 2);
+        yblock(3, 3, 3);
+        */
+        xblock(2, 2, 5);
+        xblock(8, 2, 3);
+        xblock(6, 16, 11);
+        xblock(14, 2, 3);
+        yblock(12, 2, 9);
+        yblock(2, 4, 5);
+        yblock(2, 10, 3);
+        yblock(4, 4, 9);
+        yblock(14, 8, 3);
+        yblock(16, 8, 7);
+        xysquare(8, 6, 2);
+        xysquare(8, 12, 2);
+        xysquare(3, 15, 1);
+        xysquare(15, 5, 1);
+        xysquare(13, 13, 1);
+
+
+        for (i=0; i<WORLDSIZE; i++) {
+            for (j=0; j<WORLDSIZE; j++) {
+                if (world[i][j] == 2) {
+                    coin(i, j);
+                }
+            }
+        }
+
+
+        ctx.beginPath();
+        ctx.lineWidth = "3";
+        ctx.roundRect(BLOCKSIZE, BLOCKSIZE, (WORLDSIZE-2)*BLOCKSIZE, (WORLDSIZE-2)*BLOCKSIZE, 5);
+        ctx.roundRect(BLOCKSIZE-4, BLOCKSIZE-4, (WORLDSIZE-2)*BLOCKSIZE+8, (WORLDSIZE-2)*BLOCKSIZE+8, 5);
+        ctx.stroke();
+        ctx.closePath();
+    }
+    function drawPacman(x, y) {
+        ctx.beginPath();
+        ctx.arc(x, canvas.height-y, BLOCKSIZE/2-2.5, 0, Math.PI*2);
+        ctx.fillStyle = "#FFC300  ";
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    function drawGhosts() {
+        for (i=0; i<4; i++) {
+            ctx.beginPath();
+            ctx.arc(ghost_x[i], canvas.height-ghost_y[i], BLOCKSIZE/2-2.5, 0, Math.PI*2);
+            ctx.fillStyle = "#F83212";
+            ctx.fill();
+            ctx.closePath();
+        }
+    }
+
+    function checkCoins() {
+        for (i=0; i<WORLDSIZE; i++) {
+            for (j=0; j<WORLDSIZE; j++) {
+                if (world[i][j] == 2) {
+                    if (Math.abs(BLOCKSIZE*(i+0.5)-pX) == BLOCKSIZE/2 && pY == BLOCKSIZE*(j+0.5)) {
+                        score += 1;
+                        world[i][j] = 0;
+                    }
+                    else if (Math.abs(BLOCKSIZE*(j+0.5)-pY) == BLOCKSIZE/2 && pX == BLOCKSIZE*(i+0.5)){
+                        score += 1;
+                        world[i][j] = 0;
+                    }
+                }
+            }
+        }
+    }
+
+    function updateScore() {
+        ctx.beginPath();
+        ctx.font = "15px Courier";
+        ctx.fillStyle = "white";
+        ctx.fillText("Score", 385, 25);
+        ctx.fillText(10*score, 385, 45);
+        ctx.closePath();
+    }
+
+    function checkCollision() {
+        for (i=0; i<4; i++) {
+            dx = pX-ghost_x[i];
+            dy = pY-ghost_y[i];
+            if (dx*dx + dy*dy <= (BLOCKSIZE/2-5)*(BLOCKSIZE/2-5)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    function draw() {
+        // check for direction change
+        changeDirection();
+        movePacman();
+        adjustGhosts();
+        moveGhosts();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawPacman(pX, pY);
+        drawGhosts();
+        checkCoins();
+        if (checkCollision()) {
+            alert("GAME OVER");
+            document.location.reload();
+            clearInterval(interval);
+        }
+        if (score >= 1540) {
+            alert("YOU WON");
+            document.location.reload();
+            clearInterval(interval);
+        }
+        createMap();
+        updateScore();
+        // drawMap();
+    }
+
+    function changeDirection()
+    {
+        if (pX % BLOCKSIZE != BLOCKSIZE/2 || pY % BLOCKSIZE != BLOCKSIZE/2) {
+            return;
+        }
+        if (rightPressed && asses(0, pX, pY)) {
+            dir = 0;
+        }
+        else if (downPressed && asses(1, pX, pY)) {
+            dir = 1;
+        }
+        else if (leftPressed && asses(2, pX, pY)) {
+            dir = 2;
+        }
+        else if (upPressed && asses(3, pX, pY)) {
+            dir = 3;
+        }
+    }
+    // assumes x, y % 20 = 10
+    function asses(pdir, myX, myY) {
+        xs = (myX+BLOCKSIZE/2)/BLOCKSIZE-1;
+        ys = (myY+BLOCKSIZE/2)/BLOCKSIZE-1;
+        if (pdir == 0) {
+            return (world[xs+1][ys] != 1);
+        }
+        if (pdir == 1) {
+            return (world[xs][ys-1] != 1);
+        }
+        if (pdir == 2) {
+            return (world[xs-1][ys] != 1);
+        }
+        if (pdir == 3) {
+            return (world[xs][ys+1] != 1);
+        }
+    }
+    function movePacman() {
+        if (pX % BLOCKSIZE != BLOCKSIZE/2 || pY % BLOCKSIZE != BLOCKSIZE/2) {
+            move(dir);
+        }
+        else {
+            if (asses(dir, pX, pY)) {
+                move(dir);
+            }
+        }
+    }
+
+    function move(pdir) {
+        if (pdir == 0) {
+            pX += vel;
+        }
+        if (pdir == 1) {
+            pY -= vel;
+        }
+        if (pdir == 2) {
+            pX -= vel;
+        }
+        if (pdir == 3) {
+            pY += vel;
+        }
+    }
+
+
+    document.addEventListener("keydown", keyDownHandler, false);
+    document.addEventListener("keyup", keyUpHandler, false);
+
+    function keyDownHandler(e) {
+        if (e.key === "Right" || e.key === "ArrowRight") {
+            rightPressed = true;
+        } else if (e.key === "Left" || e.key === "ArrowLeft") {
+            leftPressed = true;
+        }
+        else if (e.key === "Up" || e.key === "ArrowUp") {
+            upPressed = true;
+        }
+        else if (e.key === "Down" || e.key === "ArrowDown") {
+            downPressed = true;
+        }
+    }
+
+    function keyUpHandler(e) {
+        if (e.key === "Right" || e.key === "ArrowRight") {
+            rightPressed = false;
+        } else if (e.key === "Left" || e.key === "ArrowLeft") {
+            leftPressed = false;
+        }
+        else if (e.key === "Up" || e.key === "ArrowUp") {
+            upPressed = false;
+        }
+        else if (e.key === "Down" || e.key === "ArrowDown") {
+            downPressed = false;
+        }
+    }
+
+
+
+    interval = setInterval(draw, 10);
+
+</script>
+</body>
+</html>
